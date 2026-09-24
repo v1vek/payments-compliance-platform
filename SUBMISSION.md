@@ -2,7 +2,7 @@
 
 ## Assumptions
 - **Sanctions list:** five fictional names stored in Postgres and screened server-side through a provider interface (a stub adapter here).
-- **Spelling variants:** names are normalised (case, accents, punctuation, Ltd/LLC, c/k, ph/f, v/w) and compared by edit distance in either word order. Similarity of 85% or more is a match.
+- **Spelling variants and typos:** names are normalised (case, accents, punctuation, Ltd/LLC, c/k, ph/f, v/w) and compared by edit distance in either word order, with a swap of two letters counted as one edit. Similarity of 85% or more is a match. Initials or a surname alone don't match.
 - **Threshold:** a payment is held when the rolling 7-day total, including it, reaches $8,000. Sent, held and in-flight payments count; refused and rejected ones don't.
 - **Order of checks:** validate → reserve funds → sanctions → threshold → send.
 - **Statuses:** `screening`, `sent`, `on_hold`, `refused`, `rejected`. The customer sees only Processing, Sent, On hold or Cannot be processed.

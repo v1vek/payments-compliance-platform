@@ -33,9 +33,30 @@ describe('sanctions name matching', () => {
     }
   });
 
+  it('matches common typos: missing, extra, wrong or swapped letters', () => {
+    for (const typo of ['Viktr Orlanov', 'Viktor Orlanovv', 'Viktor Orlamov', 'Vikotr Orlanov', 'ViktorOrlanov',
+      'Nadia Petrkova', 'Nadai Petrakova', 'Karim Zahdi', 'Karim Zaehdi', 'Kareem Zahedi',
+      'Oceanic Delta Tradng', 'Ocaenic Delta Trading', 'Soren Malvedre', 'Søren Malverde']) {
+      expect(matchName(typo, SANCTIONS_LIST), typo).not.toBeNull();
+    }
+  });
+
+  it('does not match initials, a surname alone or a partial company name (too broad to refuse on)', () => {
+    for (const partial of ['V. Orlanov', 'Orlanov', 'Oceanic Delta', 'Vktr Orlnv']) {
+      expect(matchName(partial, SANCTIONS_LIST), partial).toBeNull();
+    }
+  });
+
+  it('errs on the side of caution for near-identical names', () => {
+    // Two letters away from "Nadia Petrakova". Screening tools flag names this close;
+    // letting a sanctioned name through is the failure that can't be undone.
+    expect(matchName('Nadia Petrova', SANCTIONS_LIST)?.entry).toBe('Nadia Petrakova');
+  });
+
   it('does not flag ordinary suppliers', () => {
     for (const ok of ['Lindqvist Components GmbH', 'Saigon Textile Works', 'Harbor Freight Co.',
-      'Victoria Orlando', 'Nadia Peters', 'Delta Airlines']) {
+      'Victoria Orlando', 'Nadia Peters', 'Delta Airlines', 'Karen Zahid', 'Delta Trading Co', 'Victor Oliveira',
+      'Karim Zaidi Imports', 'Soren Madsen']) {
       expect(matchName(ok, SANCTIONS_LIST), ok).toBeNull();
     }
   });
