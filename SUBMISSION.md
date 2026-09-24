@@ -13,6 +13,7 @@
 - **Demo reset.** The reset closes the customer's account and opens a fresh one, and records that in the audit log. Nothing is deleted.
 
 ## Unfinished
+- Hosted on free tiers (Render + Neon). After 15 minutes without traffic the server sleeps, so the first request can take 30–60 seconds.
 - USD only. No FX, fees, real payment rails or double-entry ledger (balances are two columns on `accounts`).
 - The sanctions provider is a stub. There's no list-admin UI; the list is seed data.
 - Email and password auth with seeded users. The sign-in lockout counts failures in memory, so it resets on restart and is per server instance. No MFA or password reset.

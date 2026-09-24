@@ -4,6 +4,11 @@ This is a small working payments platform. It has a customer screen, a complianc
 
 See [SUBMISSION.md](SUBMISSION.md) for assumptions, unfinished work and the sanctions-timeout answer.
 
+## Live demo
+**https://payments-compliance-platform.onrender.com** (password `demo1234` for all three test logins below)
+
+> **First load may take 30–60 seconds.** The demo runs on Render's free tier, which puts the server to sleep after 15 minutes without traffic. The first request wakes it up; after that it responds normally. The database (Neon) also pauses when idle and wakes in about a second. No data is lost while either is asleep.
+
 ## Stack
 - **web/**: React + Vite, implemented from the Claude Design mock.
 - **server/**: Fastify, zod and `pg`. Business rules live in `src/services`, and the rules that must hold whatever code writes the row live in `migrations/001_init.sql`.

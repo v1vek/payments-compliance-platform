@@ -200,7 +200,7 @@ export function ComplianceScreen({ me, setBadge, onSessionExpired }: Props) {
                     <div className="num" style={{ fontSize: 15, fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(p.amountCents)}</div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', width: '100%' }}>
-                    <div style={{ fontSize: 13, color: '#8E8E93' }}>{p.code} · {REASON_META[p.holdReason].short}</div>
+                    <div className="ellipsis" style={{ fontSize: 13, color: '#8E8E93', minWidth: 0 }}>{p.code} · {REASON_META[p.holdReason].short}</div>
                     <div className="pill" style={{ padding: '3px 9px', background: st.tone[0], color: st.tone[1] }}>{st.label}</div>
                   </div>
                 </button>
