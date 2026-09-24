@@ -1,30 +1,21 @@
 # Meridian: submission notes
 
 ## Assumptions
-- **Sanctions list.** Five fictional names are seeded into `sanctions_entries` in PostgreSQL. Screening sits behind a `SanctionsScreener` port; the demo uses a stub adapter that reads that table.
-- **Spelling variants.** Names are normalised (case, accents, punctuation, company suffixes such as Ltd/LLC, phonetic swaps c→k, ph→f, w/v→f, y→i, doubled letters). They are then compared by edit distance, in written order and with the words sorted. Similarity of 85% or more is a match, so "Victor Orlanoff" matches "Viktor Orlanov".
-- **Review threshold.** A payment is held when the customer's rolling 7-day total reaches US$8,000 or more, counting the new payment. Sent, on-hold and in-flight payments count. Refused and rejected payments moved no money, so they don't count. The seed's $1,200 payment is 12 days old, so $2,000 + $7,500 = $9,500 triggers review.
-- **Order of checks (server only).** Validate → reserve funds → sanctions screen → 7-day threshold → send. A held payment is **screened again at release**, whatever the reason it was held, because the list can change while it waits. No money moves without a fresh, clear screening result.
-- **Statuses.** Internally the statuses are `screening`, `sent`, `on_hold`, `refused` (sanctions) and `rejected` (compliance). The customer sees Processing, Sent, On hold, or Cannot be processed. Customer API responses are built from an allow-list of fields, so hold reasons never leave the server.
-- **Balance.** Funds are reserved when a payment is submitted. Sending debits them. Refusing or rejecting releases the reservation. A held payment is reserved but not debited. A DB constraint keeps the available balance at zero or above.
-- **Two-person review.** Either officer may recommend; a *different* officer makes the final decision. The rule is enforced three times: in the service, by a `CHECK` constraint on `payment_reviews`, and by a trigger that won't let a payment leave `on_hold` without a completed review that matches the decision.
-- **Audit.** `audit_events` is append-only. The app's DB role has no UPDATE, DELETE or TRUNCATE grant, and a trigger blocks those operations even for the table owner. Payment steps, reviews and sign-ins are all logged.
-- **Money.** Amounts are `bigint` cents. The API accepts amounts only as strings and parses them digit by digit; JSON numbers and sub-cent values are rejected.
-- **Demo reset.** The reset closes the customer's account and opens a fresh one, and records that in the audit log. Nothing is deleted.
+- **Sanctions list:** five fictional names stored in Postgres and screened server-side through a provider interface (a stub adapter here).
+- **Spelling variants:** names are normalised (case, accents, punctuation, Ltd/LLC, c/k, ph/f, v/w) and compared by edit distance in either word order. Similarity of 85% or more is a match.
+- **Threshold:** a payment is held when the rolling 7-day total, including it, reaches $8,000. Sent, held and in-flight payments count; refused and rejected ones don't.
+- **Order of checks:** validate → reserve funds → sanctions → threshold → send.
+- **Statuses:** `screening`, `sent`, `on_hold`, `refused`, `rejected`. The customer sees only Processing, Sent, On hold or Cannot be processed.
+- **Balance:** funds are reserved on submit, debited when sent, and returned on refusal or rejection.
+- **Review:** either officer may recommend; a different officer decides and may overrule. Every release is re-screened against the current list.
+- **History:** append-only. The app's database role can't update or delete audit rows, and a trigger blocks the owner too.
+- **Money:** integer cents (`bigint`), parsed from strings, never floats.
+- **Demo:** any recipient containing "Timeout Test" simulates a screening outage. "Reset demo data" opens a fresh customer account without deleting history.
 
 ## Unfinished
-- Hosted on free tiers (Render + Neon). After 15 minutes without traffic the server sleeps, so the first request can take 30–60 seconds.
-- USD only. No FX, fees, real payment rails or double-entry ledger (balances are two columns on `accounts`).
-- The sanctions provider is a stub. There's no list-admin UI; the list is seed data.
-- Email and password auth with seeded users. The sign-in lockout counts failures in memory, so it resets on restart and is per server instance. No MFA or password reset.
-- No browser end-to-end tests. Service and API tests run against real Postgres.
+USD only: no FX, fees, real payment rails or double-entry ledger. The screening provider is a stub, and there's no list admin, MFA or password reset. On free hosting, the first load after 15 idle minutes takes 30–60 seconds.
 
 ## If sanctions screening times out partway through a payment
-The payment is **held, never sent**. Processing has three steps:
-1. In a single transaction: reserve the funds, insert the payment as `screening`, and write the audit events.
-2. Call the screener outside any transaction, with a 5s deadline.
-3. In a single transaction: apply the result.
+The payment is **held, never sent**. One transaction reserves the funds and saves the payment as `screening`. Screening then runs with a 5-second deadline, and a second transaction applies the result. A timeout or error sets `on_hold`, and the customer sees only "On hold". If the server crashes midway, a sweeper moves the payment to `on_hold`. Releasing it requires a passing re-screen.
 
-A timeout or error in step 2 sets the payment to `on_hold` with reason `sanctions_timeout`. The funds stay reserved and the customer sees only "On hold". If the process crashes between steps 1 and 3, the payment is left in `screening` with funds reserved, and a sweeper later moves it to `on_hold`. Either way, no money moves without a clear screening result. When compliance releases the payment (as with every release), screening runs again and must pass before any funds move. If it's still unavailable, the payment stays on hold.
-
-**Why:** failing closed is the only safe default. A timeout means we have no evidence either way; it doesn't mean the name is clear. Sending money to a sanctioned party can't be undone and is illegal, while a short delay can be fixed. Holding rather than refusing keeps legitimate customers from being penalised for our outage, and keeps a human in the loop.
+**Why:** a timeout means we have no evidence either way. Paying a sanctioned party is illegal and can't be undone; a delay can be. Holding rather than refusing avoids penalising customers for our outage and keeps a human in the loop.
