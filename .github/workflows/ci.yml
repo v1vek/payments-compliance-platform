@@ -1,0 +1,28 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: meridian_owner
+          POSTGRES_PASSWORD: owner_pw
+          POSTGRES_DB: meridian
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U meridian_owner" --health-interval 2s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Create app role and test database
+        run: PGPASSWORD=owner_pw psql -h localhost -p 5433 -U meridian_owner -d meridian -f docker/initdb/01-roles.sql
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
