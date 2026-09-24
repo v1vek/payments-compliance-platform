@@ -26,3 +26,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Production boot smoke test (migrate + seed + serve on an empty database)
+        run: |
+          PGPASSWORD=owner_pw psql -h localhost -p 5433 -U meridian_owner -d meridian -c "CREATE DATABASE meridian_boot"
+          NODE_ENV=production PORT=4100 DEMO_MODE=true \
+            DATABASE_URL=postgres://meridian_app:app_pw@localhost:5433/meridian_boot \
+            OWNER_DATABASE_URL=postgres://meridian_owner:owner_pw@localhost:5433/meridian_boot \
+            npm start > boot.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf localhost:4100/api/health && curl -sf localhost:4100/ | grep -q "<title>Meridian"; then exit 0; fi
+            sleep 1
+          done
+          cat boot.log; exit 1

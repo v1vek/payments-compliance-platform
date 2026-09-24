@@ -1,9 +1,17 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../migrations');
+// server/migrations, whether this runs from source (server/scripts) or
+// compiled (server/dist/scripts).
+function migrationsDir(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const dir = [path.resolve(here, '../migrations'), path.resolve(here, '../../migrations')].find((d) => existsSync(d));
+  if (!dir) throw new Error(`migrations directory not found near ${here}`);
+  return dir;
+}
+const dir = migrationsDir();
 
 /** Applies pending migrations in filename order, each in its own transaction. */
 export async function migrate(connectionString: string, log = console.log): Promise<void> {
