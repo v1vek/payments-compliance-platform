@@ -37,7 +37,7 @@ npm test             # control tests against the meridian_test database
 2. Use **2 · Victor Orlanoff** (a spelling variant of *Viktor Orlanov*). The customer sees "Cannot be processed" and no money moves.
 3. Use **3 · $7,500 payment**. The 7-day total is $9,500, over the $8,000 threshold, so the payment is shown as "On hold".
 4. Sign in as Priya and recommend release. She can't make the final decision herself.
-5. Sign in as Marcus and release the payment. The money moves and the full audit trail is visible.
+5. Sign in as Marcus and release the payment. The recipient is screened again against the current list, then the money moves, and the full audit trail is visible.
 6. **4 · Screening timeout**. The stub screener simulates an outage for any recipient containing "Timeout Test": the first screening never answers, so after 5 seconds the payment fails closed to "On hold". When compliance releases it, screening runs again (the stub answers this time) and must pass before any money moves.
 
 "Reset demo data" on the sign-in page gives the customer a fresh account without deleting any history.
@@ -57,6 +57,7 @@ npm test             # control tests against the meridian_test database
 Each control has a test that attempts the forbidden action and asserts it is refused. See `server/test/controls.test.ts`:
 - sanctions exact and variant matches are refused, with no money moved and no reason leaked to the customer
 - the threshold hold reserves the funds and doesn't debit them
+- every release re-screens: a name added to the list while the payment waits is refused at release, and a screening outage at release moves nothing
 - screener timeout, error or crash mid-payment: the payment is held and never sent
 - the recommender can't decide, whether through the service, the API, or a raw SQL update
 - a payment can't leave `on_hold` without a completed review

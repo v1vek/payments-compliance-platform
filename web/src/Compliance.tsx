@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type AuditEvent, type FlaggedPayment, type PaymentDetail, type Status, type User } from './api';
 import { C, DAY, dotOf, fmt, fmtDate, fmtTime, type Tone } from './format';
+import { ActivityLog } from './ActivityLog';
 
 type Props = {
   me: User;
@@ -128,34 +129,8 @@ export function ComplianceScreen({ me, setBadge, onSessionExpired }: Props) {
       </div>
 
       {view === 'log' && (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '14px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, background: '#F9F9FB', fontSize: 12, color: '#8E8E93', flexWrap: 'wrap' }}>
-            <div>{log ? `${log.total} events` : 'Loading…'}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{lockIcon}Append-only · entries cannot be edited or deleted</div>
-          </div>
-          {log?.events.map((e) => {
-            const p = e.paymentId ? all.find((x) => x.id === e.paymentId) : undefined;
-            return (
-              <div key={e.id} className="log-row" style={{ display: 'grid', gridTemplateColumns: '130px 84px minmax(0,1fr) 110px', gap: 16, alignItems: 'start', padding: '12px 24px', borderTop: '1px solid #F2F2F7', fontSize: 13 }}>
-                <div style={{ color: '#8E8E93', paddingTop: 1 }}>{fmtTime(e.at)}</div>
-                {p ? (
-                  <button className="btn-text" style={{ textAlign: 'left', alignSelf: 'start', paddingTop: 1 }}
-                    onClick={() => { setView('queue'); setTab(p.status === 'on_hold' ? 'open' : 'closed'); select(p.id); }}>{e.paymentCode}</button>
-                ) : (
-                  <div style={{ fontWeight: 500, paddingTop: 1, color: '#48484A' }}>{e.paymentCode ?? '—'}</div>
-                )}
-                <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 6, background: dotOf(e.action) }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>{e.action}</div>
-                    <div style={{ color: '#6E6E73', textWrap: 'pretty', overflowWrap: 'anywhere' }}>{e.detail}</div>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', color: '#48484A', paddingTop: 1 }}>{e.actor}</div>
-              </div>
-            );
-          })}
-        </div>
+        <ActivityLog log={log} payments={all}
+          onOpenPayment={(p) => { setView('queue'); setTab(p.status === 'on_hold' ? 'open' : 'closed'); select(p.id); }} />
       )}
 
       {view === 'queue' && (
@@ -218,8 +193,8 @@ export function ComplianceScreen({ me, setBadge, onSessionExpired }: Props) {
                     <DecisionCard p={sp} me={me} note={note} setNote={setNote} busy={busy} error={actionError}
                       onRecommend={(a) => act('rec', a)} onDecide={(a) => setConfirm(a)} />
                   )}
-                  <HistoryCard d={detail} />
                   <AuditCard events={detail.audit} />
+                  <HistoryCard key={detail.payment.id} d={detail} />
                 </>
               )}
             </div>
@@ -314,7 +289,16 @@ function FlagCard({ d }: { d: PaymentDetail }) {
             <div style={{ display: 'flex', flexDirection: 'column', background: '#F9F9FB', borderRadius: 12, padding: '4px 14px' }}>
               <div className="kv" style={{ fontSize: 13, padding: '10px 0' }}><span>Screening result</span><span>Timeout · no result</span></div>
               <div className="kv" style={{ fontSize: 13, padding: '10px 0' }}><span>Screened name</span><span>{sp.recipient}</span></div>
-              <div className="kv" style={{ fontSize: 13, padding: '10px 0' }}><span>Funds</span><span>{sp.status === 'on_hold' ? 'Reserved, not sent' : sp.status === 'sent' ? 'Sent after re-screening' : 'Returned, not sent'}</span></div>
+              <div className="kv" style={{ fontSize: 13, padding: '10px 0' }}><span>Funds</span><span>{sp.status === 'on_hold' ? 'Reserved, not sent' : sp.status === 'sent' ? 'Sent after re-screening passed' : 'Returned, not sent'}</span></div>
+            </div>
+          </div>
+        )}
+
+        {sp.holdReason !== 'sanctions_match' && sp.status === 'refused' && sp.screening && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid #F5DEDB', background: '#FDF3F2', borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#B42318' }}>Refused at release: re-screening matched the sanctions list</div>
+            <div style={{ fontSize: 13, color: '#48484A', textWrap: 'pretty' }}>
+              “{sp.screening.input}” matched list entry “{sp.screening.entry}” ({sp.screening.type}) when screened again at release. No funds were sent; the reservation was returned.
             </div>
           </div>
         )}
@@ -358,7 +342,10 @@ function DecisionCard({ p, me, note, setNote, busy, error, onRecommend, onDecide
       <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,1fr)', gap: 14 }}>
         {rec ? step(1, '#1D1D1F', '#fff') : step(1, '#EAF2FD', '#0B63CE')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Recommendation</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Recommendation</div>
+            <div style={{ fontSize: 12, color: '#8E8E93' }}>First officer · advisory</div>
+          </div>
           {rec && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14, color: '#48484A' }}>
               <div><b>{rec.byName}</b> recommended <b>{rec.action === 'release' ? 'release' : 'rejection'}</b> · {fmtTime(rec.at)}</div>
@@ -381,7 +368,10 @@ function DecisionCard({ p, me, note, setNote, busy, error, onRecommend, onDecide
       <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,1fr)', gap: 14 }}>
         {dec ? step(2, '#1D1D1F', '#fff') : rec ? step(2, '#EAF2FD', '#0B63CE') : step(2, '#F2F2F7', '#AEAEB2')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Final decision</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Final decision</div>
+            <div style={{ fontSize: 12, color: '#8E8E93' }}>Second officer · binding · re-screens before release</div>
+          </div>
           {onHold && !rec && (
             <div style={{ fontSize: 14, color: '#8E8E93' }}>Available after a recommendation is made. The recommending officer cannot make the final decision.</div>
           )}
@@ -414,28 +404,49 @@ function DecisionCard({ p, me, note, setNote, busy, error, onRecommend, onDecide
   );
 }
 
+const HISTORY_PREVIEW = 5;
+
 function HistoryCard({ d }: { d: PaymentDetail }) {
   const sp = d.payment;
+  const [showAll, setShowAll] = useState(false);
+  // Newest first. The preview always includes the payment under review, even
+  // when it is older than the most recent few.
+  const preview = d.history.slice(0, HISTORY_PREVIEW);
+  if (!preview.some((x) => x.id === sp.id)) {
+    const self = d.history.find((x) => x.id === sp.id);
+    if (self) preview.push(self);
+  }
+  const rows = showAll ? d.history : preview;
+  const hidden = d.history.length - preview.length;
   return (
     <div className="card" style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em' }}>Customer history</div>
-        <div style={{ fontSize: 12, color: '#8E8E93' }}>{sp.customerName} · all payments</div>
+        <div style={{ fontSize: 12, color: '#8E8E93' }}>{sp.customerName} · {d.history.length} {d.history.length === 1 ? 'payment' : 'payments'}</div>
       </div>
       <div style={{ border: '1px solid #EDEDF0', borderRadius: 12, overflow: 'hidden' }}>
-        {d.history.map((x, i) => {
+        {rows.map((x, i) => {
           const lab = x.holdReason ? officerStatus(x).label : x.status === 'sent' ? 'Sent' : 'Processing';
           const isThis = x.id === sp.id;
+          const gap = !showAll && i > 0 && rows[i - 1] && d.history.indexOf(x) - d.history.indexOf(rows[i - 1]!) > 1;
           return (
-            <div key={x.id} style={{ display: 'grid', gridTemplateColumns: '84px minmax(0,1fr) auto auto', gap: 12, alignItems: 'center', padding: '11px 14px', fontSize: 13, borderTop: i ? '1px solid #EDEDF0' : 'none', background: isThis ? '#F5F8FD' : '#fff' }}>
-              <div style={{ color: '#8E8E93' }}>{x.code}</div>
-              <div className="ellipsis">{x.recipient} <span style={{ color: '#8E8E93' }}>· {fmtDate(x.createdAt)}</span></div>
-              <div style={{ color: /Refused|Rejected/.test(lab) ? '#B42318' : '#6E6E73' }}>{isThis ? (x.status === 'on_hold' ? 'Under review' : 'This payment') : lab}</div>
-              <div className="num" style={{ fontWeight: 500, textAlign: 'right', minWidth: 90 }}>{fmt(x.amountCents)}</div>
+            <div key={x.id}>
+              {gap && <div style={{ padding: '4px 14px', fontSize: 12, color: '#AEAEB2', borderTop: '1px solid #EDEDF0', background: '#FAFAFC' }}>⋯</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: '84px minmax(0,1fr) auto auto', gap: 12, alignItems: 'center', padding: '11px 14px', fontSize: 13, borderTop: i ? '1px solid #EDEDF0' : 'none', background: isThis ? '#F5F8FD' : '#fff' }}>
+                <div style={{ color: '#8E8E93' }}>{x.code}</div>
+                <div className="ellipsis">{x.recipient} <span style={{ color: '#8E8E93' }}>· {fmtDate(x.createdAt)}</span></div>
+                <div style={{ color: /Refused|Rejected/.test(lab) ? '#B42318' : '#6E6E73' }}>{isThis ? (x.status === 'on_hold' ? 'Under review' : 'This payment') : lab}</div>
+                <div className="num" style={{ fontWeight: 500, textAlign: 'right', minWidth: 90 }}>{fmt(x.amountCents)}</div>
+              </div>
             </div>
           );
         })}
       </div>
+      {hidden > 0 && (
+        <button className="btn-text" aria-expanded={showAll} onClick={() => setShowAll(!showAll)} style={{ alignSelf: 'flex-start' }}>
+          {showAll ? 'Show fewer' : `Show all ${d.history.length} payments`}
+        </button>
+      )}
     </div>
   );
 }
@@ -444,7 +455,7 @@ function AuditCard({ events }: { events: AuditEvent[] }) {
   return (
     <div className="card" style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em' }}>Audit trail</div>
+        <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.01em' }}>Audit trail <span style={{ fontSize: 13, fontWeight: 400, color: '#8E8E93' }}>· this payment</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8E8E93' }}>
           {lockIcon}Append-only · {events.length} {events.length === 1 ? 'event' : 'events'}
         </div>
@@ -487,9 +498,7 @@ function ConfirmModal({ p, action, onCancel, onConfirm }: { p: FlaggedPayment; a
         <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', textWrap: 'pretty' }}>{rel ? 'Release' : 'Reject'} {fmt(p.amountCents)} to {p.recipient}?</div>
         <div style={{ fontSize: 14, color: '#48484A', textWrap: 'pretty' }}>
           {rel
-            ? p.holdReason === 'sanctions_timeout'
-              ? 'Sanctions screening will be re-run first. If it passes, the funds are sent immediately. This decision is final and will be recorded in the audit trail.'
-              : 'The funds will be sent immediately. This decision is final and will be recorded in the audit trail.'
+            ? 'The recipient is screened again against the current sanctions list. If it passes, the funds are sent immediately; if it matches, the payment is refused. This decision is final and will be recorded in the audit trail.'
             : 'The reserved funds will be returned to the customer, who will only see “cannot be processed”. This decision is final.'}
         </div>
         {against && <div style={{ fontSize: 13, color: '#9A5B00', background: '#FFF3DC', borderRadius: 10, padding: '10px 12px', textWrap: 'pretty' }}>{against}</div>}

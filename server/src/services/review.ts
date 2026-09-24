@@ -48,10 +48,12 @@ export async function decide(deps: Deps, user: SessionUser, paymentId: string, a
   }
   assertCanDecide(pre.payment, pre.review, user);
 
-  // A payment held because screening never answered must pass screening before
-  // any money moves. This is a network call, so it happens outside the transaction.
+  // No money moves without a fresh sanctions result: every release is screened
+  // again against the current list, whatever the hold reason. A threshold hold
+  // may have waited days, and the list can change in that time. This is a
+  // network call, so it happens outside the transaction.
   let rescreen: ScreeningOutcome | null = null;
-  if (action === 'release' && pre.payment.hold_reason === 'sanctions_timeout') {
+  if (action === 'release') {
     rescreen = await screenWithTimeout(deps.screener, pre.payment.recipient, deps.sanctionsTimeoutMs, 'rescreen');
     if (rescreen.kind === 'unavailable') {
       await audit(deps.db, SYSTEM, 'Re-screening timed out', 'Screening still unavailable · payment remains on hold', paymentId);
@@ -82,7 +84,8 @@ export async function decide(deps: Deps, user: SessionUser, paymentId: string, a
       return;
     }
 
-    if (rescreen?.kind === 'match') {
+    if (!rescreen) throw new Error('invariant: release without a screening result'); // never settle blind
+    if (rescreen.kind === 'match') {
       await audit(c, SYSTEM, 'Re-screening: sanctions match', `“${p.recipient}” matched “${rescreen.match.entry}”`, p.id, rescreen.match);
       await releaseReserved(c, p.account_id, p.amount_cents);
       await c.query(`UPDATE payments SET status = 'refused', screening = $2, resolved_at = now() WHERE id = $1`,
@@ -90,9 +93,7 @@ export async function decide(deps: Deps, user: SessionUser, paymentId: string, a
       await audit(c, SYSTEM, 'Payment refused', 'Reserved funds returned · no funds sent', p.id);
       return;
     }
-    if (rescreen?.kind === 'clear') {
-      await audit(c, SYSTEM, 'Re-screening passed', 'No match against sanctions list', p.id);
-    }
+    await audit(c, SYSTEM, 'Re-screening passed', 'No match against the current sanctions list', p.id);
 
     await settleReserved(c, p.account_id, p.amount_cents);
     await c.query(`UPDATE payments SET status = 'sent', resolved_at = now() WHERE id = $1`, [p.id]);

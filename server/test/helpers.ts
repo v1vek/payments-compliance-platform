@@ -27,13 +27,15 @@ export async function resetDatabase(): Promise<void> {
 export class FakeScreener implements SanctionsScreener {
   mode: 'normal' | 'hang' | 'error' = 'normal';
   calls = 0;
+  /** The provider's current list; tests can add a name to simulate a list update. */
+  list: string[] = [...SANCTIONS_LIST];
   async screen(name: string, signal: AbortSignal) {
     this.calls++;
     if (this.mode === 'error') throw new Error('upstream 502');
     if (this.mode === 'hang') {
       await new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
     }
-    return { match: matchName(name, SANCTIONS_LIST) };
+    return { match: matchName(name, this.list) };
   }
 }
 

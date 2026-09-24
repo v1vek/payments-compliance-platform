@@ -8,7 +8,7 @@ export function TopBar({ user, area, badge, onSignOut }: Props) {
       <div className="topbar-inner" style={{ maxWidth: 1240, margin: '0 auto', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <div style={{ width: 26, height: 26, borderRadius: 7, background: '#1D1D1F', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>M</div>
-          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>Meridian</div>
+          <div className="hide-sm" style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>Meridian</div>
           <div className="hide-sm" style={{ width: 1, height: 18, background: '#D2D2D7', margin: '0 6px' }} />
           <div className="hide-sm" style={{ fontSize: 14, color: '#6E6E73' }}>{area}</div>
           {badge && (

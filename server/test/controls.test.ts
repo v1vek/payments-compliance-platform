@@ -168,6 +168,56 @@ describe('Two-person review', () => {
   });
 });
 
+describe('Every release is re-screened against the current list', () => {
+  const heldPayment = async (recipient = 'Saigon Textile Works') => {
+    await pay('Lindqvist Components GmbH', '2000');
+    return pay(recipient, '7500');
+  };
+
+  it('a threshold hold is screened again on release before money moves', async () => {
+    const p = await heldPayment();
+    await recommend(deps, co1, p.id, 'release', '');
+    const callsBefore = screener.calls;
+    await decide(deps, co2, p.id, 'release', '');
+    expect(screener.calls).toBe(callsBefore + 1);
+  });
+
+  it('a name added to the list while the payment waited is caught at release', async () => {
+    const before = await balances(db);
+    const p = await heldPayment('Meridian Shell Holdings');
+    await recommend(deps, co1, p.id, 'release', '');
+    screener.list.push('Meridian Shell Holdings'); // list updated after the original screening
+    await decide(deps, co2, p.id, 'release', '');
+    const { rows } = await db.query(`SELECT status FROM payments WHERE id = $1`, [p.id]);
+    expect(rows[0].status).toBe('refused');
+    const after = await balances(db);
+    expect(after.held).toBe(0);
+    expect(before.ledger - after.ledger).toBe(200_000); // only the first $2,000 left the account
+    const view = await customerOverview(db, customer);
+    expect(view.payments.find((x) => x.id === p.id)!.status).toBe('cannot_be_processed');
+  });
+
+  it('if screening is down at release time, a threshold hold stays on hold and nothing moves', async () => {
+    const p = await heldPayment();
+    await recommend(deps, co1, p.id, 'release', '');
+    screener.mode = 'hang';
+    const before = await balances(db);
+    await expect(decide(deps, co2, p.id, 'release', '')).rejects.toMatchObject({ code: 'screening_unavailable' });
+    expect(await balances(db)).toEqual(before);
+    const { rows } = await db.query(`SELECT p.status, r.decided_by FROM payments p JOIN payment_reviews r ON r.payment_id = p.id WHERE p.id = $1`, [p.id]);
+    expect(rows[0]).toMatchObject({ status: 'on_hold', decided_by: null });
+  });
+
+  it('rejection needs no screening: it moves no money', async () => {
+    const p = await heldPayment();
+    await recommend(deps, co1, p.id, 'reject', '');
+    screener.mode = 'hang';
+    await decide(deps, co2, p.id, 'reject', '');
+    const { rows } = await db.query(`SELECT status FROM payments WHERE id = $1`, [p.id]);
+    expect(rows[0].status).toBe('rejected');
+  });
+});
+
 describe('Sanctions screening failure fails closed', () => {
   it.each(['hang', 'error'] as const)('screener %s: payment held, never sent, funds reserved', async (mode) => {
     screener.mode = mode;
@@ -245,7 +295,7 @@ describe('Audit history is immutable', () => {
     const { rows } = await db.query(`SELECT actor_name, action FROM audit_events WHERE payment_id = $1 ORDER BY id`, [p.id]);
     expect(rows.map((r) => r.action)).toEqual([
       'Payment submitted', 'Sanctions screening started', 'Sanctions screening passed', 'Review threshold reached',
-      'Payment placed on hold', 'Recommended release', 'Final decision: release', 'Payment sent',
+      'Payment placed on hold', 'Recommended release', 'Final decision: release', 'Re-screening passed', 'Payment sent',
     ]);
     expect(rows.find((r) => r.action === 'Recommended release').actor_name).toBe('Priya Shah');
     expect(rows.find((r) => r.action === 'Final decision: release').actor_name).toBe('Marcus Lee');
