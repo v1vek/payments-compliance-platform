@@ -1,0 +1,22 @@
+# Render Blueprint: one Docker web service (API + built web app).
+# The database is external (Neon). Set the two secret URLs in the dashboard.
+services:
+  - type: web
+    name: payments-compliance-platform
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL        # least-privileged app role (pooled, sslmode=verify-full)
+        sync: false
+      - key: OWNER_DATABASE_URL  # schema owner, used only for migrations/seed at startup
+        sync: false
+      - key: DEMO_MODE
+        value: "true"
+      - key: SANCTIONS_TIMEOUT_MS
+        value: "5000"
+      - key: REVIEW_THRESHOLD_CENTS
+        value: "800000"

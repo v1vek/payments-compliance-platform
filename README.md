@@ -61,4 +61,13 @@ Each control has a test that attempts the forbidden action and asserts it is ref
 - sign-in lockout, security headers, cookie flags, server-side logout, and audit entries for refused actions
 
 ## Deploy
-Build with the `Dockerfile` (it runs on Render, Railway, Fly and similar hosts). Set `DATABASE_URL` and optionally `OWNER_DATABASE_URL`, plus `DEMO_MODE=true`. On start the container applies migrations, seeds demo data if it's missing, and serves the API and web app on `$PORT`.
+Live stack: **Render** (free Docker web service, Singapore) and **Neon** (free Postgres, Singapore).
+
+1. In Neon, create the least-privileged role `meridian_app` (`CREATE ROLE meridian_app LOGIN PASSWORD '…'`) and run the migrations and seed as the owner.
+2. In Render, create a Blueprint from this repo. `render.yaml` defines the service. Set two secrets:
+   - `DATABASE_URL`: `meridian_app` on Neon's **pooled** host
+   - `OWNER_DATABASE_URL`: the owner on the **direct** host, used only for migrations at startup
+   
+   Both need `sslmode=verify-full`, so the database certificate is always verified.
+3. On each start the container applies pending migrations, seeds demo data if it's missing, and serves the API and web app on `$PORT`.
+4. Point an uptime pinger at `/api/health` every 10 minutes. It doesn't touch the database, so it keeps the free web service warm without spending Neon compute hours.

@@ -364,6 +364,12 @@ describe('Security hardening', () => {
     expect(JSON.stringify(detail)).not.toContain('wrong');
   });
 
+  it('health check answers without a session', async () => {
+    const res = await app.inject({ url: '/api/health' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
   it('sends security headers on every response', async () => {
     const res = await app.inject({ url: '/api/config' });
     expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");

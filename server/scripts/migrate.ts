@@ -7,7 +7,7 @@ const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../migra
 
 /** Applies pending migrations in filename order, each in its own transaction. */
 export async function migrate(connectionString: string, log = console.log): Promise<void> {
-  const client = new pg.Client({ connectionString, ssl: /sslmode=require|supabase|neon\.tech/.test(connectionString) ? { rejectUnauthorized: false } : undefined });
+  const client = new pg.Client({ connectionString });
   await client.connect();
   try {
     await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');

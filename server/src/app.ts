@@ -128,6 +128,10 @@ export function buildApp(opts: AppOptions) {
 
   app.get('/api/config', async () => ({ demoMode: opts.demoMode }));
 
+  // For the uptime pinger and the platform health check. Deliberately does not
+  // touch the database, so pings keep the web service warm without waking Postgres.
+  app.get('/api/health', async () => ({ ok: true }));
+
   app.post('/api/demo/reset', async (_req, reply: FastifyReply) => {
     if (!opts.demoMode) throw new AppError(404, 'not_found', 'Not found.');
     await resetDemoCustomer(db);

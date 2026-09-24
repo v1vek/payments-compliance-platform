@@ -12,9 +12,10 @@ export type Db = pg.Pool;
 export type Tx = pg.PoolClient;
 export type Queryable = pg.Pool | pg.PoolClient;
 
+// TLS comes from the connection string. Hosted databases should use
+// sslmode=verify-full so the server certificate is always verified.
 export function createPool(connectionString: string): pg.Pool {
-  const ssl = /sslmode=require|supabase|neon\.tech/.test(connectionString) ? { rejectUnauthorized: false } : undefined;
-  return new pg.Pool({ connectionString, ssl, max: 10 });
+  return new pg.Pool({ connectionString, max: 10 });
 }
 
 export async function tx<T>(db: Db, fn: (c: Tx) => Promise<T>): Promise<T> {
