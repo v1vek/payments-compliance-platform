@@ -32,6 +32,19 @@ npm test             # control tests against the meridian_test database
 | Compliance user 1 | priya.shah@meridian.test |
 | Compliance user 2 | marcus.lee@meridian.test |
 
+## Sanctions test list (fictional)
+Payments to any of these names, or a close spelling variant or typo, are refused. The customer only ever sees "Cannot be processed".
+
+| List entry | Also refused (try these) | Allowed (different name) |
+|---|---|---|
+| Viktor Orlanov | Victor Orlanoff · Orlanov Viktor | Victoria Orlando |
+| Nadia Petrakova | Nadia Petrakowa · Nadai Petrakova | Nadia Peters |
+| Karim Zahedi | Kareem Zahedi · Karim Zaehdi | Karen Zahid |
+| Oceanic Delta Trading | Oceanic Delta Trading LLC · Oceanic Delta Tradng | Delta Trading Co |
+| Soren Malverde | Sören Malverde · Soren Malvedre | Soren Madsen |
+
+Any recipient containing **"Timeout Test"** simulates a screening outage, so the payment is held and never sent. Compliance officers see which list entry matched and the similarity score.
+
 ## Demo script
 1. Sign in as the customer and use the **1 · Supplier $2,000** chip. The payment is sent and the balance drops by $2,000.
 2. Use **2 · Victor Orlanoff** (a spelling variant of *Viktor Orlanov*). The customer sees "Cannot be processed" and no money moves.
